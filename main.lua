@@ -1,6 +1,6 @@
--- === Настройки ===
+-- === Настройки / Settings ===
 local targetDiamonds = 20
-local tunnelLength = 100 -- длина туннеля в блоках
+local tunnelLength = 100 -- длина туннеля в блоках / tunnel length in blocks
 
 local wanted = {
   ["minecraft:diamond_ore"] = true,
@@ -8,11 +8,11 @@ local wanted = {
   ["minecraft:gold_ore"] = true
 }
 
--- === Переменные для координат ===
+-- === Переменные для координат / Coordinate variables ===
 local x, y, z = 0, 0, 0
-local dir = 0 -- 0 = north, 1 = east, 2 = south, 3 = west
+local dir = 0 -- 0 = north/nord, 1 = east/est, 2 = south/sud, 3 = west/ouest
 
--- === Вспомогательные функции ===
+-- === Вспомогательные функции / Helper functions ===
 function turnLeft() dir = (dir - 1) % 4 turtle.turnLeft() end
 function turnRight() dir = (dir + 1) % 4 turtle.turnRight() end
 
@@ -34,7 +34,7 @@ function down()
   y = y - 1
 end
 
--- === Подсчёт алмазов ===
+-- === Подсчёт алмазов / Count diamonds ===
 function countDiamonds()
   local total = 0
   for i=1,16 do
@@ -46,18 +46,18 @@ function countDiamonds()
   return total
 end
 
--- === Фильтрация инвентаря ===
+-- === Фильтрация инвентаря / Inventory filtering ===
 function filterInventory()
   for i=1,16 do
     local item = turtle.getItemDetail(i)
     if item and not wanted[item.name] and item.name ~= "minecraft:diamond" then
       turtle.select(i)
-      turtle.drop() -- выкинуть ненужное
+      turtle.drop() -- выкинуть ненужное / drop unwanted items
     end
   end
 end
 
--- === Проверка блока и добыча жилы ===
+-- === Проверка блока и добыча жилы / Check block and mine vein ===
 function tryMine(dirCheck, moveFunc, backFunc)
   local success, data = dirCheck()
   if success and data and wanted[data.name] then
@@ -75,12 +75,12 @@ function exploreOre()
   tryMine(turtle.inspectDown, function() turtle.digDown() down() end, function() up() end)
 end
 
--- === Возврат домой ===
+-- === Возврат домой / Return home ===
 function goHome()
-  -- возвращаемся по Y
+  -- возвращаемся по Y / go back along Y
   while y > 0 do down() end
   while y < 0 do up() end
-  -- возвращаемся по X
+  -- возвращаемся по X / go back along X
   while x > 0 do
     while dir ~= 3 do turnLeft() end
     forward()
@@ -89,7 +89,7 @@ function goHome()
     while dir ~= 1 do turnLeft() end
     forward()
   end
-  -- возвращаемся по Z
+  -- возвращаемся по Z / go back along Z
   while z > 0 do
     while dir ~= 0 do turnLeft() end
     forward()
@@ -100,12 +100,12 @@ function goHome()
   end
 end
 
--- === Основной цикл ===
-print("Начинаем копать туннель...")
+-- === Основной цикл / Main loop ===
+print("Начинаем копать туннель... / Starting tunnel excavation...")
 
 for step = 1, tunnelLength do
   if countDiamonds() >= targetDiamonds then
-    print("20+ алмазов найдено! Возвращаемся домой...")
+    print("20+ алмазов найдено! Возвращаемся домой... / 20+ diamonds found! Returning home...")
     break
   end
 
@@ -116,4 +116,5 @@ for step = 1, tunnelLength do
 end
 
 goHome()
-print("Готово!")
+print("Готово! / Done!")
+

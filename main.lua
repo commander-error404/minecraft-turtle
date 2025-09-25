@@ -1,46 +1,52 @@
 -- Script intelligent de minage pour tortue
--- Descend à l'altitude optimale (Y), effectue du branch mining et vein mining,
--- filtre l’inventaire (diamants/or/fer) et rentre à la base après avoir trouvé 20 diamants.
+-- Descend ou monte à l'altitude Y spécifiée, fait du branch mining et vein mining,
+-- filtre l’inventaire (diamants/or/fer), puis retourne à la base après avoir atteint l’objectif.
 
 -- Paramètres
-local DIAMANTS_CIBLES = 20
-local ECART_BRANCHES = 3        -- distance entre les branches
-local LONGUEUR_TUNNEL = 50     -- longueur du tunnel principal
+local CIBLE_DIAMANTS = 20       -- objectif de diamants
+local ECART_BRANCHES = 3        -- espacement entre les branches latérales
+local LONGUEUR_TUNNEL = 50      -- longueur du tunnel principal
 
-local FILTRE_MINERAIS = {
+local FILTRE_MINERAIS = {       -- minerais à extraire
   ["minecraft:diamond_ore"] = true,
   ["minecraft:iron_ore"]    = true,
   ["minecraft:gold_ore"]    = true,
 }
 
--- Profondeurs optimales pour les minerais (Y)
-local NIVEAU_OPTIMAL = {
-  ["minecraft:diamond_ore"] = -59,
-  ["minecraft:iron_ore"]    = 50,
-  ["minecraft:gold_ore"]    = 48,
-}
-
--- Obtenir l'altitude actuelle (via GPS ou autre)
-local function getCurrentY()
-  local _, y, _ = gps.locate()
-  return math.floor(y)
+-- Fonction utilitaire : demande un nombre via le chat
+local function demanderNiveau(message)
+  print(message)
+  while true do
+    local event, input = os.pullEvent("chat")
+    local niveau = tonumber(input)
+    if niveau then
+      print("Niveau entré :", niveau)
+      return niveau
+    else
+      print("Erreur : entrée invalide. Veuillez entrer un nombre.")
+    end
+  end
 end
 
--- Monter/descendre la tortue jusqu'à l'altitude cible
-local function goToLevel(targetY)
-  local currentY = getCurrentY()
-  while currentY < targetY do
+-- Demander les niveaux
+local niveauActuel = demanderNiveau("Entrez le niveau Y actuel (ex. : où se trouve le coffre) :")
+local niveauCible  = demanderNiveau("Entrez le niveau Y de minage (ex. : -59 pour les diamants) :")
+
+-- Monter/descendre jusqu'au bon niveau
+local function allerAuNiveau()
+  while niveauActuel < niveauCible do
     turtle.up()
-    currentY = currentY + 1
+    niveauActuel = niveauActuel + 1
   end
-  while currentY > targetY do
+  while niveauActuel > niveauCible do
     turtle.down()
-    currentY = currentY - 1
+    niveauActuel = niveauActuel - 1
   end
+  print("Niveau Y atteint :", niveauActuel)
 end
 
 -- Compter les diamants dans l’inventaire
-local function countDiamonds()
+local function compterDiamants()
   local total = 0
   for slot = 1, 16 do
     local item = turtle.getItemDetail(slot)
@@ -51,13 +57,13 @@ local function countDiamonds()
   return total
 end
 
--- Vérifie si un bloc est précieux (dans la liste)
-local function isValuable(name)
-  return FILTRE_MINERAIS[name] or false
+-- Vérifie si un bloc est un minerai précieux
+local function estPrecieux(nom)
+  return FILTRE_MINERAIS[nom] or false
 end
 
--- Extraction récursive d’un filon de minerai
-local function mineVein()
+-- Minage récursif d’un filon
+local function minerFilon()
   for _, dir in ipairs({"forward", "up", "down", "left", "right"}) do
     local success, data
     if dir == "forward" then
@@ -76,7 +82,8 @@ local function mineVein()
       turtle.turnLeft()
     end
 
-    if success and isValuable(data.name) then
+    if success and estPrecieux(data.name) then
+      -- Miner le bloc et avancer dedans
       if dir == "forward" then turtle.dig(); turtle.forward()
       elseif dir == "up"    then turtle.digUp(); turtle.up()
       elseif dir == "down"  then turtle.digDown(); turtle.down()
@@ -84,9 +91,10 @@ local function mineVein()
       elseif dir == "right" then turtle.turnRight(); turtle.dig(); turtle.forward(); turtle.turnLeft()
       end
 
-      mineVein() -- appel récursif pour continuer le filon
+      -- Appel récursif pour continuer le filon
+      minerFilon()
 
-      -- Revenir en arrière après avoir extrait le filon
+      -- Retour en arrière
       if dir == "forward" then turtle.back()
       elseif dir == "up"    then turtle.down()
       elseif dir == "down"  then turtle.up()
@@ -98,57 +106,59 @@ local function mineVein()
 end
 
 -- Filtrer l’inventaire : ne garder que les ressources utiles
-local function filterInventory()
+local function filtrerInventaire()
   for slot = 1, 16 do
     local item = turtle.getItemDetail(slot)
-    if item and not (
-      item.name == "minecraft:diamond" or
-      item.name == "minecraft:iron_ingot" or
-      item.name == "minecraft:gold_ingot"
-    ) then
-      turtle.select(slot)
-      turtle.drop() -- jeter dans un coffre si possible, sinon supprimer
+    if item then
+      local nom = item.name
+      -- Seuls les diamants, lingots de fer et d’or sont gardés
+      if not (nom == "minecraft:diamond" or nom == "minecraft:iron_ingot" or nom == "minecraft:gold_ingot") then
+        turtle.select(slot)
+        turtle.drop()
+      end
     end
   end
-  turtle.select(1) -- revenir au slot 1
+  turtle.select(1)
 end
 
 -- Retour à la base et déchargement
-local function returnHome()
-  print("Objectif atteint, retour à la base...")
-  -- Ici, ajouter la logique de retour (GPS ou retour manuel)
-  -- Ex. : turtle.back() en boucle ou navigation par coordonnées
-  -- Après retour :
-  filterInventory()
+local function retourMaison()
+  print("Objectif atteint ("..compterDiamants().." diamants). Retour à la base...")
+  -- Retour simple : reculer tout le tunnel
+  for i = 1, LONGUEUR_TUNNEL do
+    turtle.back()
+  end
+  -- Filtrer et déposer dans le coffre
+  filtrerInventaire()
   print("Déchargement terminé.")
-  error() -- arrêter le programme
+  error() -- arrêter l’exécution
 end
 
 -- Fonction principale de branch mining
-local function branchMine()
-  for branch = 0, ECART_BRANCHES - 1 do
+local function branchMining()
+  for branche = 0, ECART_BRANCHES - 1 do
     -- Creuser le tunnel principal
-    for step = 1, LONGUEUR_TUNNEL do
+    for etape = 1, LONGUEUR_TUNNEL do
       local success, data = turtle.inspect()
-      if success and isValuable(data.name) then
+      if success and estPrecieux(data.name) then
         turtle.dig()
         turtle.forward()
-        mineVein()
+        minerFilon()
         turtle.back()
       else
         turtle.dig()
         turtle.forward()
       end
 
-      -- Vérifie si l’objectif diamant est atteint
-      if countDiamonds() >= DIAMANTS_CIBLES then
-        returnHome()
+      -- Vérifier si l'objectif est atteint
+      if compterDiamants() >= CIBLE_DIAMANTS then
+        retourMaison()
       end
     end
 
-    -- Se déplacer pour creuser une nouvelle branche
-    if branch < ECART_BRANCHES - 1 then
-      if branch % 2 == 0 then
+    -- Se déplacer latéralement pour commencer une nouvelle branche
+    if branche < ECART_BRANCHES - 1 then
+      if (branche % 2) == 0 then
         turtle.turnRight()
         turtle.dig()
         turtle.forward()
@@ -163,8 +173,8 @@ local function branchMine()
   end
 end
 
--- Lancer le script
-print("Je monte au niveau optimal pour les diamants :", NIVEAU_OPTIMAL["minecraft:diamond_ore"])
-goToLevel(NIVEAU_OPTIMAL["minecraft:diamond_ore"])
-print("Début du branch mining...")
-branchMine()
+-- Démarrage du script
+print("Montée/descente vers le niveau Y =", niveauCible)
+allerAuNiveau()
+print("Début du branch mining avec vein mining...")
+branchMining()

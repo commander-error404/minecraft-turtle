@@ -1,123 +1,139 @@
--- Tortue de minage : creuser un parallélépipède
--- Paramètres : largeur (selon X), longueur (selon Z), hauteur (selon Y)
--- Valeurs positives : vers l'avant, vers la droite, vers le haut
+-- Mining Turtle: копание параллелепипеда
+-- Параметры: ширина (по X), длина (по Z), высота (по Y)
+-- Положительные значения: вперед, вправо, вверх
 
--- Exemple d'exécution :
+-- Пример запуска:
 --   mineArea 5 4 3
--- signifie : largeur = 5, longueur = 4, hauteur = 3 — à partir du point de départ, monter de 3 blocs, largeur vers la droite, longueur vers l'avant
+-- это значит: ширина 5, длина 4, высота 3 — от стартовой точки вверх 3, ширина вправо 5, вперед 4
 
--- Vérification et traitement des arguments
+-- Проверка и обработка аргументов
 local args = { ... }
 if #args < 3 then
-  print("Utilisation : mineArea <largeur_X> <longueur_Z> <hauteur_Y>")
+  print("Использование: mineArea <ширина_X> <длина_Z> <высота_Y>")
   return
 end
 
-local largeur = tonumber(args[1])
-local longueur = tonumber(args[2])
-local hauteur = tonumber(args[3])
+local width = tonumber(args[1])
+local length = tonumber(args[2])
+local height = tonumber(args[3])
 
-if not largeur or not longueur or not hauteur then
-  print("Les arguments doivent être des nombres.")
+if not width or not length or not height then
+  print("Аргументы должны быть числами.")
   return
 end
 
--- Fonction : creuse si nécessaire et avance
-local function essayerDeCreuser()
+-- Функция: при необходимости dig/digUp/digDown, move вперёд/вверх/вниз
+local function tryDig()
   while turtle.detect() do
     turtle.dig()
   end
 end
 
-local function essayerDeCreuserHaut()
+local function tryDigUp()
   while turtle.detectUp() do
     turtle.digUp()
   end
 end
 
-local function essayerDeCreuserBas()
+local function tryDigDown()
   while turtle.detectDown() do
     turtle.digDown()
   end
 end
 
--- Fonctions de déplacement sécurisé avec creusage
-local function monterEnSécurité()
-  essayerDeCreuserHaut()
+-- Функции перемещения с копанием
+local function safeUp()
+  tryDigUp()
   turtle.up()
 end
 
-local function descendreEnSécurité()
-  essayerDeCreuserBas()
+local function safeDown()
+  tryDigDown()
   turtle.down()
 end
 
-local function avancerEnSécurité()
-  essayerDeCreuser()
+local function safeForward()
+  tryDig()
   turtle.forward()
 end
 
--- Procédure principale : creuser couche par couche en hauteur, puis lignes et colonnes
-local pasY = hauteur > 0 and 1 or -1
-local couches = math.abs(hauteur)
+-- Основная процедура: копаем позиции по высоте, затем по длине, по ширине
+-- Будем копать слой за слоем по высоте
 
-for h = 1, couches do
-  -- Monter ou descendre d’un niveau sauf au début
+local originY = 0  -- начало уровня
+local stepY = height > 0 and 1 or -1
+local layers = math.abs(height)
+
+for h = 1, layers do
+  -- Двигаемся вверх или вниз на один уровень (кроме первого слоя, если h==1, мы уже на уровне старта)
   if h > 1 then
-    if pasY == 1 then
-      monterEnSécurité()
+    if stepY == 1 then
+      safeUp()
     else
-      descendreEnSécurité()
+      safeDown()
     end
   end
 
-  -- Creuser un rectangle de largeur x longueur à ce niveau
-  for l = 1, longueur do
-    for w = 1, largeur do
+  -- Для этого слоя, копаем прямоугольник width x length
+  for l = 1, length do
+    for w = 1, width do
+      -- На первой клетке этого слоя (l,w) мы уже стоим, так что не двигаемся
       if not (l == 1 and w == 1) then
+        -- Если не на первой в строке, передвигаемся вправо (или влево) в зависимости от чётности строк
+        -- Делаем змейкой, чтобы экономить перемещения
         if (l % 2 == 1) then
-          -- Ligne impaire : déplacement vers la droite
+          -- нечётный ряд: движемся вправо
           if w > 1 then
-            essayerDeCreuser()
+            tryDig()
             turtle.turnRight()
-            avancerEnSécurité()
+            safeForward()
             turtle.turnLeft()
           end
         else
-          -- Ligne paire : déplacement vers la gauche
+          -- чётный ряд: движемся влево
           if w > 1 then
-            essayerDeCreuser()
+            tryDig()
             turtle.turnLeft()
-            avancerEnSécurité()
+            safeForward()
             turtle.turnRight()
           end
         end
       end
     end
-    -- Aller à la ligne suivante si ce n’est pas la dernière
-    if l < longueur then
-      avancerEnSécurité()
+    -- После окончания ряда ширины, если это не последний ряд длины, переходим на следующий ряд
+    if l < length then
+      safeForward()
     end
   end
 
-  -- Revenir à la position d’origine (coin du parallélépipède)
-  if longueur > 1 then
-    for i = 1, (longueur - 1) do
+  -- После слоя, возвращаемся к начальной позиции по ширине и длине, чтобы начать следующий слой
+  -- Сначала вернуть обратно по длине
+  if length > 1 then
+    -- плавно возвращаемся к начальной линии длины
+    for i = 1, (length - 1) do
       turtle.back()
     end
   end
-
-  if (longueur % 2 == 0) then
-    -- Si nombre pair de lignes, revenir par la largeur
-    for i = 1, (largeur - 1) do
+  -- Затем по ширине: в зависимости от того, на каком конце мы оказались
+  if (length % 2 == 0) then
+    -- если чётное число рядов, то мы на другой стороне от начала ширины
+    for i = 1, (width - 1) do
+      -- поворот, движение назад, поворот обратно
       turtle.turnRight()
-      avancerEnSécurité()
+      safeForward()
       turtle.turnLeft()
     end
+  else
+    -- если нечётное — мы уже на начале по ширине
+    -- нет необходимости
   end
-  -- Sinon, déjà au bon endroit, rien à faire
 
-  -- Remise de l'orientation (simplifiée)
+  -- После этого поворачиваем так, чтобы взгляд был направлен в сторону "вперёд" исходную
+  -- Например, если last turn был поворот, то надо вернуть ориентацию
+  -- Для простоты: поворачиваем к первоначальной ориентации
+  -- Можно реализовать track направления, но здесь упрощение
+
 end
 
-print("Opération terminée.")
+print("Работа завершена.")
+
